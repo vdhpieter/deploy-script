@@ -1,0 +1,98 @@
+#!/bin/bash
+#
+# Example:
+#
+#   bin/deploy_to_production
+#   bin/deploy_to_production --minor
+#   bin/deploy_to_production --major
+#   COMMIT=hash bin/deploy_to_production
+
+set -e
+
+function msg() {
+  echo "*** $*"
+}
+
+# Check the time, add warning if deploying after 5 pm
+hour=$(date +"%H")
+if ((hour >= 17))
+then
+  confirming_message="I really want to deploy after 5 pm and will be responsible for the consequences."
+  msg "Are you sure you want to deploy? It's already after 5 pm... If you are really sure type to following: '$confirming_message'"
+  read typed_message
+  if [[ $typed_message != $confirming_message ]]
+  then
+    msg "Messages dit not match, aborting deploy."
+    exit 1
+  fi
+fi
+
+# Checkout master if not yet done
+branch_name=$(git symbolic-ref -q HEAD)
+branch_name=${branch_name##refs/heads/}
+branch_name=${branch_name:-HEAD}
+if [[ $branch_name != "master" ]]
+then
+  msg "Checking out master"
+  git checkout master
+fi
+
+# pull master
+msg "Pulling master"
+git pull
+
+# Make errors not fail the script, because if the deployed_tag command fails we want to continue
+set +e
+# Check if latest commit is already deployed
+deployed_tag=$(git describe --exact-match --tags HEAD 2>/dev/null)
+# $? stores the exit code of the last runned command
+if [[ $? == 0 ]]
+then
+  msg "Latest commit on master is already deployed with tag $deployed_tag"
+  exit 1
+fi
+
+# Make errors fail the script again (so undo set +e)
+set -e
+
+# Fetch all tags from origin
+git fetch --tags
+
+# Get the most recent tag from git
+most_recent_tag=$(git describe --tags --abbrev=0)
+# Delete the first character (the v)
+most_recent_version=${most_recent_tag:1}
+# Split the tag in array for each number, so 1.2.3 -> [1, 2, 3]
+IFS='.' read -r -a current_version <<< "$most_recent_version"
+
+new_tag="v"
+
+# Decide based on the options what the new tag will look like
+if [[ "$1" == "--major" ]]
+then
+  new_major=$((current_version[0] + 1))
+  new_tag="$new_tag$new_major.0.0"
+fi
+
+if [[ "$1" == "--minor" ]]
+then
+  new_minor=$((current_version[1] + 1))
+  new_tag="$new_tag${current_version[0]}.$new_minor.0"
+fi
+
+if [[ "$1" != "--minor" && "$1" != "--major" ]]
+then
+  new_patch=$((current_version[2] + 1))
+  new_tag="$new_tag${current_version[0]}.${current_version[1]}.$new_patch"
+fi
+
+msg "Adding new tag $new_tag and pushing to master"
+if [[ $COMMIT ]]
+then
+  git tag $new_tag $COMMIT
+else
+  git tag $new_tag
+fi
+
+git push origin $new_tag
+msg "Deploy started, new changes in this deploy: https://www.github.com/datacamp/main-app/compare/$most_recent_tag...$new_tag"
