@@ -15,7 +15,7 @@ function msg() {
 
 # Check the time, add warning if deploying after 5 pm
 hour=$(date +"%H")
-if ((hour >= 17))
+if ((hour >= 12))
 then
   confirming_message="I really want to deploy after 5 pm and will be responsible for the consequences."
   msg "Are you sure you want to deploy? It's already after 5 pm... If you are really sure type to following: '$confirming_message'"
