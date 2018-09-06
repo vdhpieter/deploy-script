@@ -95,4 +95,4 @@ else
 fi
 
 git push origin $new_tag
-msg "Deploy started, new changes in this deploy: https://www.github.com/datacamp/main-app/compare/$most_recent_tag...$new_tag"
+msg "Deploy started, new changes in this deploy: https://www.github.com/vdhpieter/deploy-script/compare/$most_recent_tag...$new_tag"
